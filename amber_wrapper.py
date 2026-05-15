@@ -42,3 +42,48 @@ def tleap(
         s: Ignore leaprc startup file.
     """
     return _run("tleap", f=f, I=I, s=s)
+
+
+def pmemd(
+    i: str | None = None,
+    o: str | None = None,
+    p: str | None = None,
+    c: str | None = None,
+    r: str | None = None,
+    x: str | None = None,
+    ref: str | None = None,
+    O: bool = False,
+    cuda: bool = False,
+) -> str:
+    """Run ``pmemd`` (or ``pmemd.cuda``).
+
+    Args:
+        i: Input control file (``.mdin``).
+        o: Output log file (``.mdout``).
+        p: Topology file (``.prmtop``).
+        c: Input coordinates (``.rst7`` / ``.ncrst``).
+        r: Restart file output.
+        x: Trajectory file output.
+        ref: Reference structure for restraints.
+        O: Overwrite output files.
+        cuda: Use ``pmemd.cuda`` instead of ``pmemd``.
+    """
+    binary = "pmemd.cuda" if cuda else "pmemd"
+    return _run(binary, i=i, o=o, p=p, c=c, r=r, x=x, ref=ref, O=O)
+
+
+def sander(
+    i: str | None = None,
+    o: str | None = None,
+    p: str | None = None,
+    c: str | None = None,
+    r: str | None = None,
+    x: str | None = None,
+    ref: str | None = None,
+    O: bool = False,
+) -> str:
+    """Run ``sander`` (free CPU engine).
+
+    Args match ``pmemd`` except no ``cuda`` flag.
+    """
+    return _run("sander", i=i, o=o, p=p, c=c, r=r, x=x, ref=ref, O=O)
