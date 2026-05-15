@@ -2,10 +2,12 @@
 
 import shutil
 import subprocess
+import tempfile
 
 
 def _run(binary: str, **kwargs: object) -> None:
-    """Run an AMBER binary with CLI flags built from kwargs.
+    """
+    Run an AMBER binary with CLI flags built from kwargs.
 
     Boolean values become bare flags (e.g., ``O=True`` → ``-O``).
     All other values are emitted as ``-flag value``.
@@ -85,7 +87,8 @@ def sander(
     ref: str | None = None,
     O: bool = False,
 ) -> None:
-    """Run ``sander`` (free CPU engine).
+    """
+    Run ``sander`` (free CPU engine).
 
     Args match ``pmemd`` except no ``cuda`` flag.
     """
@@ -99,7 +102,8 @@ def cpptraj(
     y: str | None = None,
     O: bool = False,
 ) -> None:
-    """Run ``cpptraj``.
+    """
+    Run ``cpptraj``.
 
     Args:
         p: Topology file.
@@ -109,8 +113,6 @@ def cpptraj(
         O: Overwrite output files.
     """
     if input is not None:
-        import tempfile
-
         with tempfile.NamedTemporaryFile(mode="w", suffix=".in", delete=False) as tmp:
             tmp.write(input)
             tmp.flush()
@@ -129,7 +131,8 @@ def pdb4amber(
     resmap: str | None = None,
     addatomicnumbers: bool = False,
 ) -> None:
-    """Run ``pdb4amber``.
+    """
+    Run ``pdb4amber``.
 
     Args:
         input: Input PDB file.
@@ -159,7 +162,8 @@ def ambpdb(
     c: str | None = None,
     o: str | None = None,
 ) -> None:
-    """Run ``ambpdb``.
+    """
+    Run ``ambpdb``.
 
     Args:
         p: Topology file (``.prmtop``).
@@ -174,7 +178,8 @@ def parmed(
     p: str | None = None,
     O: bool = False,
 ) -> None:
-    """Run ``parmed``.
+    """
+    Run ``parmed``.
 
     Args:
         input: Input script.
@@ -193,7 +198,8 @@ def antechamber(
     nc: int | None = None,
     **extra: object,
 ) -> None:
-    """Run ``antechamber``.
+    """
+    Run ``antechamber``.
 
     Args:
         i: Input file.
@@ -204,6 +210,6 @@ def antechamber(
         nc: Net molecular charge.
         **extra: Additional CLI flags.
     """
-    flags: dict[str, object] = dict(i=i, fi=fi, fo=fo, c=c, o=o, nc=nc)
+    flags: dict[str, object] = {"i": i, "fi": fi, "fo": fo, "c": c, "o": o, "nc": nc}
     flags.update(extra)
     return _run("antechamber", **flags)
