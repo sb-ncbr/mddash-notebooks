@@ -87,3 +87,122 @@ def sander(
     Args match ``pmemd`` except no ``cuda`` flag.
     """
     return _run("sander", i=i, o=o, p=p, c=c, r=r, x=x, ref=ref, O=O)
+
+
+def cpptraj(
+    p: str | None = None,
+    i: str | None = None,
+    input: str | None = None,
+    y: str | None = None,
+    O: bool = False,
+) -> str:
+    """Run ``cpptraj``.
+
+    Args:
+        p: Topology file.
+        i: Input control script.
+        input: Inline input string (written to a temp file internally).
+        y: Input trajectory.
+        O: Overwrite output files.
+    """
+    if input is not None:
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".in", delete=False
+        ) as tmp:
+            tmp.write(input)
+            tmp.flush()
+            i = tmp.name
+
+    return _run("cpptraj", p=p, i=i, y=y, O=O)
+
+
+def pdb4amber(
+    input: str,
+    output: str,
+    reduce: bool = False,
+    nohydrogens: bool = False,
+    dry: bool = False,
+    justify: bool = False,
+    resmap: str | None = None,
+    addatomicnumbers: bool = False,
+) -> str:
+    """Run ``pdb4amber``.
+
+    Args:
+        input: Input PDB file.
+        output: Output PDB file.
+        reduce: Run ``reduce`` to add hydrogens.
+        nohydrogens: Do not run ``reduce``.
+        dry: Strip water.
+        justify: Right-justify atom names.
+        resmap: Residue mapping file.
+        addatomicnumbers: Add atomic numbers.
+    """
+    return _run(
+        "pdb4amber",
+        input=input,
+        output=output,
+        reduce=reduce,
+        nohydrogens=nohydrogens,
+        dry=dry,
+        justify=justify,
+        resmap=resmap,
+        addatomicnumbers=addatomicnumbers,
+    )
+
+
+def ambpdb(
+    p: str,
+    c: str | None = None,
+    o: str | None = None,
+) -> str:
+    """Run ``ambpdb``.
+
+    Args:
+        p: Topology file (``.prmtop``).
+        c: Coordinate/restart file.
+        o: Output PDB file.
+    """
+    return _run("ambpdb", p=p, c=c, o=o)
+
+
+def parmed(
+    input: str | None = None,
+    p: str | None = None,
+    O: bool = False,
+) -> str:
+    """Run ``parmed``.
+
+    Args:
+        input: Input script.
+        p: Topology file.
+        O: Overwrite output files.
+    """
+    return _run("parmed", input=input, p=p, O=O)
+
+
+def antechamber(
+    i: str,
+    fi: str = "gaff",
+    o: str | None = None,
+    fo: str = "mol2",
+    c: str = "bcc",
+    nc: int | None = None,
+    **extra: object,
+) -> str:
+    """Run ``antechamber``.
+
+    Args:
+        i: Input file.
+        fi: Input format.
+        o: Output file.
+        fo: Output format.
+        c: Charge method.
+        nc: Net molecular charge.
+        **extra: Additional CLI flags.
+    """
+    flags: dict[str, object] = dict(i=i, fi=fi, fo=fo, c=c, o=o, nc=nc)
+    flags.update(extra)
+    return _run("antechamber", **flags)
