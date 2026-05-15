@@ -6,6 +6,8 @@
 
 **Architecture:** A thin Python wrapper exposes AmberTools CLI programs as typed functions (`amb.tleap(...)`, `amb.pmemd(...)`). The notebook generates `.mdin` control files via f-strings and calls the wrapper step-by-step, mirroring the existing GROMACS notebook philosophy.
 
+**Wrapper design:** One `_run(binary, **kwargs)` helper builds the CLI from a dict and invokes `subprocess.run`. Every wrapper function declares typed parameters and forwards them directly to `_run` (e.g., `_run("pmemd", i=i, o=o, p=p, O=O)`). `_run` skips `None` and `False` values, emitting booleans as bare flags and everything else as `-flag value`. This keeps wrappers DRY, readable, and avoids the long `if` chains that would otherwise duplicate the same filtering logic in every function.
+
 **Tech Stack:** Python 3.12, AmberTools/PMEMD (host binaries), NGLView, MDTraj, NumPy, Matplotlib
 
 ---
@@ -34,11 +36,12 @@ import subprocess
 from typing import Literal
 
 
-def _run(binary: str, **kwargs) -> str:
+def _run(binary: str, **kwargs: object) -> str:
     """Run an AMBER binary with CLI flags built from kwargs.
 
     Boolean values become bare flags (e.g., ``O=True`` → ``-O``).
     All other values are emitted as ``-flag value``.
+    ``None`` and ``False`` values are omitted.
     """
     exe = shutil.which(binary)
     if exe is None:
@@ -46,10 +49,11 @@ def _run(binary: str, **kwargs) -> str:
 
     cmd = [exe]
     for key, val in kwargs.items():
+        if val is None or val is False:
+            continue
         flag = f"-{key}"
         if isinstance(val, bool):
-            if val:
-                cmd.append(flag)
+            cmd.append(flag)
         else:
             cmd.extend([flag, str(val)])
 
@@ -69,14 +73,7 @@ def tleap(
         I: Add directory to search path.
         s: Ignore leaprc startup file.
     """
-    kwargs: dict[str, object] = {}
-    if f is not None:
-        kwargs["f"] = f
-    if I is not None:
-        kwargs["I"] = I
-    if s:
-        kwargs["s"] = True
-    return _run("tleap", **kwargs)
+    return _run("tleap", f=f, I=I, s=s)
 ```
 
 - [ ] **Step 2: Verify `tleap` builds correct command**
@@ -129,24 +126,7 @@ def pmemd(
         cuda: Use ``pmemd.cuda`` instead of ``pmemd``.
     """
     binary = "pmemd.cuda" if cuda else "pmemd"
-    kwargs: dict[str, object] = {}
-    if i is not None:
-        kwargs["i"] = i
-    if o is not None:
-        kwargs["o"] = o
-    if p is not None:
-        kwargs["p"] = p
-    if c is not None:
-        kwargs["c"] = c
-    if r is not None:
-        kwargs["r"] = r
-    if x is not None:
-        kwargs["x"] = x
-    if ref is not None:
-        kwargs["ref"] = ref
-    if O:
-        kwargs["O"] = True
-    return _run(binary, **kwargs)
+    return _run(binary, i=i, o=o, p=p, c=c, r=r, x=x, ref=ref, O=O)
 
 
 def sander(
@@ -163,24 +143,7 @@ def sander(
 
     Args match ``pmemd`` except no ``cuda`` flag.
     """
-    kwargs: dict[str, object] = {}
-    if i is not None:
-        kwargs["i"] = i
-    if o is not None:
-        kwargs["o"] = o
-    if p is not None:
-        kwargs["p"] = p
-    if c is not None:
-        kwargs["c"] = c
-    if r is not None:
-        kwargs["r"] = r
-    if x is not None:
-        kwargs["x"] = x
-    if ref is not None:
-        kwargs["ref"] = ref
-    if O:
-        kwargs["O"] = True
-    return _run("sander", **kwargs)
+    return _run("sander", i=i, o=o, p=p, c=c, r=r, x=x, ref=ref, O=O)
 ```
 
 - [ ] **Step 2: Verify command-line construction**
@@ -224,16 +187,6 @@ def cpptraj(
         y: Input trajectory.
         O: Overwrite output files.
     """
-    kwargs: dict[str, object] = {}
-    if p is not None:
-        kwargs["p"] = p
-    if i is not None:
-        kwargs["i"] = i
-    if y is not None:
-        kwargs["y"] = y
-    if O:
-        kwargs["O"] = True
-
     if input is not None:
         import tempfile
         with tempfile.NamedTemporaryFile(
@@ -241,10 +194,9 @@ def cpptraj(
         ) as tmp:
             tmp.write(input)
             tmp.flush()
-            kwargs["i"] = tmp.name
-        # cpptraj reads from file; temp file remains on disk briefly
+            i = tmp.name
 
-    return _run("cpptraj", **kwargs)
+    return _run("cpptraj", p=p, i=i, y=y, O=O)
 
 
 def pdb4amber(
@@ -269,20 +221,17 @@ def pdb4amber(
         resmap: Residue mapping file.
         addatomicnumbers: Add atomic numbers.
     """
-    kwargs: dict[str, object] = {"input": input, "output": output}
-    if reduce:
-        kwargs["reduce"] = True
-    if nohydrogens:
-        kwargs["nohydrogens"] = True
-    if dry:
-        kwargs["dry"] = True
-    if justify:
-        kwargs["justify"] = True
-    if resmap is not None:
-        kwargs["resmap"] = resmap
-    if addatomicnumbers:
-        kwargs["addatomicnumbers"] = True
-    return _run("pdb4amber", **kwargs)
+    return _run(
+        "pdb4amber",
+        input=input,
+        output=output,
+        reduce=reduce,
+        nohydrogens=nohydrogens,
+        dry=dry,
+        justify=justify,
+        resmap=resmap,
+        addatomicnumbers=addatomicnumbers,
+    )
 
 
 def ambpdb(
@@ -297,12 +246,7 @@ def ambpdb(
         c: Coordinate/restart file.
         o: Output PDB file.
     """
-    kwargs: dict[str, object] = {"p": p}
-    if c is not None:
-        kwargs["c"] = c
-    if o is not None:
-        kwargs["o"] = o
-    return _run("ambpdb", **kwargs)
+    return _run("ambpdb", p=p, c=c, o=o)
 
 
 def parmed(
@@ -317,14 +261,7 @@ def parmed(
         p: Topology file.
         O: Overwrite output files.
     """
-    kwargs: dict[str, object] = {}
-    if input is not None:
-        kwargs["input"] = input
-    if p is not None:
-        kwargs["p"] = p
-    if O:
-        kwargs["O"] = True
-    return _run("parmed", **kwargs)
+    return _run("parmed", input=input, p=p, O=O)
 
 
 def antechamber(
@@ -334,7 +271,7 @@ def antechamber(
     fo: str = "mol2",
     c: str = "bcc",
     nc: int | None = None,
-    **kwargs: object,
+    **extra: object,
 ) -> str:
     """Run ``antechamber``.
 
@@ -345,15 +282,11 @@ def antechamber(
         fo: Output format.
         c: Charge method.
         nc: Net molecular charge.
-        **kwargs: Additional CLI flags.
+        **extra: Additional CLI flags.
     """
-    args: dict[str, object] = {"i": i, "fi": fi, "fo": fo, "c": c}
-    if o is not None:
-        args["o"] = o
-    if nc is not None:
-        args["nc"] = nc
-    args.update(kwargs)
-    return _run("antechamber", **args)
+    flags = dict(i=i, fi=fi, fo=fo, c=c, o=o, nc=nc)
+    flags.update(extra)
+    return _run("antechamber", **flags)
 ```
 
 - [ ] **Step 2: Commit**
