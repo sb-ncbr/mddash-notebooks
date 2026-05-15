@@ -2,34 +2,71 @@
 
 import shutil
 import subprocess
-import tempfile
+import sys
+from contextlib import nullcontext
 
 
-def _run(binary: str, **kwargs: object) -> None:
+class AmberError(Exception):
+    """Raised when an AMBER binary exits with a non-zero status."""
+
+    def __init__(self, cmd: list[str], returncode: int):
+        self.cmd = cmd
+        self.returncode = returncode
+        super().__init__(f"{' '.join(cmd)} exited with status {returncode}")
+
+    def _render_traceback_(self):
+        return [str(self)]
+
+
+def _run(
+    binary: str,
+    long_flags: set[str] | None = None,
+    stdout_file: str | None = None,
+    **kwargs: object,
+) -> None:
     """
     Run an AMBER binary with CLI flags built from kwargs.
 
     Boolean values become bare flags (e.g., ``O=True`` → ``-O``).
-    All other values are emitted as ``-flag value``.
+    Long flags in ``long_flags`` become ``--flag``; all others become ``-flag``.
     ``None`` and ``False`` values are omitted.
 
-    Output is printed directly to stdout/stderr as the command runs.
+    If ``stdout_file`` is given the binary's stdout is redirected to that file.
+    Output is otherwise streamed to stdout/stderr in real time.
     """
     exe = shutil.which(binary)
     if exe is None:
         raise RuntimeError(f"Binary not found in PATH: {binary}")
 
+    long_flags = long_flags or set()
     cmd = [exe]
     for key, val in kwargs.items():
         if val is None or val is False:
             continue
-        flag = f"-{key}"
+        flag = f"--{key}" if key in long_flags else f"-{key}"
         if isinstance(val, bool):
             cmd.append(flag)
         else:
             cmd.extend([flag, str(val)])
 
-    subprocess.run(cmd, check=True)
+    stdout_context = open(stdout_file, "w") if stdout_file else nullcontext(None)
+    with stdout_context as stdout:
+        process = subprocess.Popen(
+            cmd,
+            stdout=stdout if stdout_file else subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+
+        if process.stdout is not None:
+            for chunk in iter(lambda: process.stdout.read(4096), ""):
+                sys.stdout.write(chunk)
+                sys.stdout.flush()
+
+        process.wait()
+
+    if process.returncode != 0:
+        raise AmberError(cmd, process.returncode)
 
 
 def tleap(
@@ -98,9 +135,8 @@ def sander(
 def cpptraj(
     p: str | None = None,
     i: str | None = None,
-    input: str | None = None,
     y: str | None = None,
-    O: bool = False,
+    o: str | None = None,
 ) -> None:
     """
     Run ``cpptraj``.
@@ -108,53 +144,30 @@ def cpptraj(
     Args:
         p: Topology file.
         i: Input control script.
-        input: Inline input string (written to a temp file internally).
         y: Input trajectory.
-        O: Overwrite output files.
+        o: Redirect stdout to file.
     """
-    if input is not None:
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".in", delete=False) as tmp:
-            tmp.write(input)
-            tmp.flush()
-            i = tmp.name
-
-    return _run("cpptraj", p=p, i=i, y=y, O=O)
+    return _run("cpptraj", p=p, i=i, y=y, o=o)
 
 
 def pdb4amber(
-    input: str,
-    output: str,
+    i: str | None = None,
+    o: str | None = None,
     reduce: bool = False,
-    nohydrogens: bool = False,
-    dry: bool = False,
-    justify: bool = False,
-    resmap: str | None = None,
-    addatomicnumbers: bool = False,
+    y: bool = False,
+    d: bool = False,
 ) -> None:
     """
     Run ``pdb4amber``.
 
     Args:
-        input: Input PDB file.
-        output: Output PDB file.
+        i: PDB input file.
+        o: PDB output file.
         reduce: Run ``reduce`` to add hydrogens.
-        nohydrogens: Do not run ``reduce``.
-        dry: Strip water.
-        justify: Right-justify atom names.
-        resmap: Residue mapping file.
-        addatomicnumbers: Add atomic numbers.
+        y: Remove all hydrogen atoms.
+        d: Remove water.
     """
-    return _run(
-        "pdb4amber",
-        input=input,
-        output=output,
-        reduce=reduce,
-        nohydrogens=nohydrogens,
-        dry=dry,
-        justify=justify,
-        resmap=resmap,
-        addatomicnumbers=addatomicnumbers,
-    )
+    return _run("pdb4amber", long_flags={"reduce"}, i=i, o=o, reduce=reduce, y=y, d=d)
 
 
 def ambpdb(
@@ -168,9 +181,9 @@ def ambpdb(
     Args:
         p: Topology file (``.prmtop``).
         c: Coordinate/restart file.
-        o: Output PDB file.
+        o: Output PDB file (stdout is redirected here).
     """
-    return _run("ambpdb", p=p, c=c, o=o)
+    return _run("ambpdb", p=p, c=c, stdout_file=o)
 
 
 def parmed(
@@ -186,7 +199,7 @@ def parmed(
         p: Topology file.
         O: Overwrite output files.
     """
-    return _run("parmed", input=input, p=p, O=O)
+    return _run("parmed", long_flags={"input"}, input=input, p=p, O=O)
 
 
 def antechamber(
