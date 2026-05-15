@@ -4,12 +4,14 @@ import shutil
 import subprocess
 
 
-def _run(binary: str, **kwargs: object) -> str:
+def _run(binary: str, **kwargs: object) -> None:
     """Run an AMBER binary with CLI flags built from kwargs.
 
     Boolean values become bare flags (e.g., ``O=True`` → ``-O``).
     All other values are emitted as ``-flag value``.
     ``None`` and ``False`` values are omitted.
+
+    Output is printed directly to stdout/stderr as the command runs.
     """
     exe = shutil.which(binary)
     if exe is None:
@@ -25,16 +27,16 @@ def _run(binary: str, **kwargs: object) -> str:
         else:
             cmd.extend([flag, str(val)])
 
-    result = subprocess.run(cmd, check=True, capture_output=True, text=True)
-    return result.stdout
+    subprocess.run(cmd, check=True)
 
 
 def tleap(
     f: str | None = None,
     I: str | None = None,
     s: bool = False,
-) -> str:
-    """Run ``tleap``.
+) -> None:
+    """
+    Run ``tleap``.
 
     Args:
         f: Source script file.
@@ -54,8 +56,9 @@ def pmemd(
     ref: str | None = None,
     O: bool = False,
     cuda: bool = False,
-) -> str:
-    """Run ``pmemd`` (or ``pmemd.cuda``).
+) -> None:
+    """
+    Run ``pmemd`` (or ``pmemd.cuda``).
 
     Args:
         i: Input control file (``.mdin``).
@@ -81,7 +84,7 @@ def sander(
     x: str | None = None,
     ref: str | None = None,
     O: bool = False,
-) -> str:
+) -> None:
     """Run ``sander`` (free CPU engine).
 
     Args match ``pmemd`` except no ``cuda`` flag.
@@ -95,7 +98,7 @@ def cpptraj(
     input: str | None = None,
     y: str | None = None,
     O: bool = False,
-) -> str:
+) -> None:
     """Run ``cpptraj``.
 
     Args:
@@ -108,9 +111,7 @@ def cpptraj(
     if input is not None:
         import tempfile
 
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".in", delete=False
-        ) as tmp:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".in", delete=False) as tmp:
             tmp.write(input)
             tmp.flush()
             i = tmp.name
@@ -127,7 +128,7 @@ def pdb4amber(
     justify: bool = False,
     resmap: str | None = None,
     addatomicnumbers: bool = False,
-) -> str:
+) -> None:
     """Run ``pdb4amber``.
 
     Args:
@@ -157,7 +158,7 @@ def ambpdb(
     p: str,
     c: str | None = None,
     o: str | None = None,
-) -> str:
+) -> None:
     """Run ``ambpdb``.
 
     Args:
@@ -172,7 +173,7 @@ def parmed(
     input: str | None = None,
     p: str | None = None,
     O: bool = False,
-) -> str:
+) -> None:
     """Run ``parmed``.
 
     Args:
@@ -191,7 +192,7 @@ def antechamber(
     c: str = "bcc",
     nc: int | None = None,
     **extra: object,
-) -> str:
+) -> None:
     """Run ``antechamber``.
 
     Args:
