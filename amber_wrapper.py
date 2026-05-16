@@ -6,6 +6,23 @@ import sys
 from contextlib import nullcontext
 
 
+def _has_gpu() -> bool:
+    """Return True if an NVIDIA GPU is available."""
+    if not shutil.which("nvidia-smi"):
+        return False
+    try:
+        result = subprocess.run(
+            ["nvidia-smi", "-L"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            check=False,
+            timeout=5,
+        )
+        return result.returncode == 0 and b"GPU" in result.stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
 class AmberError(Exception):
     """Raised when an AMBER binary exits with a non-zero status."""
 
@@ -94,10 +111,15 @@ def pmemd(
     x: str | None = None,
     ref: str | None = None,
     O: bool = False,
-    cuda: bool = False,
 ) -> None:
     """
-    Run ``pmemd`` (or ``pmemd.cuda``).
+    Run ``pmemd`` with automatic engine selection.
+
+    Automatically selects the best engine:
+    - ``pmemd.cuda`` when an NVIDIA GPU is available.
+    - Serial ``pmemd`` otherwise.
+
+    The selected engine and command are printed before execution.
 
     Args:
         i: Input control file (``.mdin``).
@@ -108,10 +130,13 @@ def pmemd(
         x: Trajectory file output.
         ref: Reference structure for restraints.
         O: Overwrite output files.
-        cuda: Use ``pmemd.cuda`` instead of ``pmemd``.
     """
-    binary = "pmemd.cuda" if cuda else "pmemd"
-    return _run(binary, i=i, o=o, p=p, c=c, r=r, x=x, ref=ref, O=O)
+    if _has_gpu():
+        print("amber_wrapper: using pmemd.cuda (GPU detected)")
+        return _run("pmemd.cuda", i=i, o=o, p=p, c=c, r=r, x=x, ref=ref, O=O)
+
+    print("amber_wrapper: using serial pmemd")
+    return _run("pmemd", i=i, o=o, p=p, c=c, r=r, x=x, ref=ref, O=O)
 
 
 def sander(
@@ -127,7 +152,7 @@ def sander(
     """
     Run ``sander`` (free CPU engine).
 
-    Args match ``pmemd`` except no ``cuda`` flag.
+    Uses OpenMP threading automatically (respects ``OMP_NUM_THREADS``).
     """
     return _run("sander", i=i, o=o, p=p, c=c, r=r, x=x, ref=ref, O=O)
 
