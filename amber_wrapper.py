@@ -131,12 +131,23 @@ def pmemd(
         ref: Reference structure for restraints.
         O: Overwrite output files.
     """
+    checked_engines: list[str] = []
     if _has_gpu():
-        print("amber_wrapper: using pmemd.cuda (GPU detected)")
-        return _run("pmemd.cuda", i=i, o=o, p=p, c=c, r=r, x=x, ref=ref, O=O)
+        checked_engines.append("pmemd.cuda")
+        if shutil.which("pmemd.cuda"):
+            print("amber_wrapper: using pmemd.cuda (GPU detected)")
+            return _run("pmemd.cuda", i=i, o=o, p=p, c=c, r=r, x=x, ref=ref, O=O)
 
-    print("amber_wrapper: using serial pmemd")
-    return _run("pmemd", i=i, o=o, p=p, c=c, r=r, x=x, ref=ref, O=O)
+    checked_engines.append("pmemd")
+    if shutil.which("pmemd"):
+        if "pmemd.cuda" in checked_engines:
+            print("amber_wrapper: pmemd.cuda not found; falling back to serial pmemd")
+        else:
+            print("amber_wrapper: using serial pmemd")
+        return _run("pmemd", i=i, o=o, p=p, c=c, r=r, x=x, ref=ref, O=O)
+
+    checked = ", ".join(checked_engines)
+    raise RuntimeError(f"No usable pmemd engine found in PATH; checked: {checked}")
 
 
 def sander(
